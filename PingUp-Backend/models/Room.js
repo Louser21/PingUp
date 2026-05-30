@@ -1,6 +1,14 @@
 const mongoose = require('mongoose');
 
+/**
+ * @fileoverview Room Model
+ * Defines the schema for chat rooms (channels) within the application.
+ * Supports categorization, channel ordering, and access control modifiers
+ * (private, read-only, locked).
+ */
+
 const RoomSchema = new mongoose.Schema({
+  // ─── Basic Details ──────────────────────────────────────────────
   name:           { type: String, required: true, unique: true, trim: true },
   description:    { type: String, default: '' },
   emoji:          { type: String, default: '💬' },
@@ -8,15 +16,16 @@ const RoomSchema = new mongoose.Schema({
   order:          { type: Number, default: 0 },
   createdBy:      { type: String, default: 'system' },
 
-  // ── Access control ──────────────────────────────────────────────
-  isPrivate:      { type: Boolean, default: false },   // hidden from members
-  isReadOnly:     { type: Boolean, default: false },   // members can't send
-  isLocked:       { type: Boolean, default: false },   // nobody can send
+  // ─── Access Control Modifiers ───────────────────────────────────
+  isPrivate:      { type: Boolean, default: false },   // hidden from members, visible only to allowedUsers and owner/mods
+  isReadOnly:     { type: Boolean, default: false },   // members cannot send messages, but can read
+  isLocked:       { type: Boolean, default: false },   // no one can send messages (not even mods)
 
-  // Users explicitly allowed in private rooms
+  // ─── Relationships ──────────────────────────────────────────────
+  // Array of ObjectIds pointing to Users who are explicitly granted access to this private room
   allowedUsers:   [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
 
-  // Pinned message IDs
+  // Array of ObjectIds pointing to Messages that have been pinned in this room
   pinnedMessages: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Message' }],
 }, { timestamps: true });
 

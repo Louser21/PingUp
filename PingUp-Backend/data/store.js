@@ -1,18 +1,34 @@
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
 
+/**
+ * @fileoverview Store & Permissions
+ * Provides role constants and hierarchy logic for the Role-Based Access Control (RBAC) system.
+ */
+
+// ─── Role Definitions ─────────────────────────────────────────────
 const ROLES = {
-  ADMIN: 'owner',
+  OWNER: 'owner',
   MODERATOR: 'moderator',
   MEMBER: 'member',
 };
 
+// ─── Role Hierarchy / Weights ─────────────────────────────────────
+// Instead of checking string equality (e.g. role === 'owner' || role === 'moderator'),
+// we assign numeric weights to roles. This allows us to check if a user is
+// "at least" a certain role (e.g., userWeight >= moderatorWeight).
 const ROLE_WEIGHTS = {
   [ROLES.OWNER]: 3,
   [ROLES.MODERATOR]: 2,
   [ROLES.MEMBER]: 1,
 };
 
+/**
+ * Checks if a user has sufficient permissions based on their role weight.
+ * @param {string} userRole - The role of the user (e.g. 'member')
+ * @param {string} requiredRole - The minimum role required (e.g. 'moderator')
+ * @returns {boolean} True if userRole weight >= requiredRole weight
+ */
 const hasPermission = (userRole, requiredRole) => {
   const userWeight = ROLE_WEIGHTS[userRole] || 0;
   const requiredWeight = ROLE_WEIGHTS[requiredRole] || 0;

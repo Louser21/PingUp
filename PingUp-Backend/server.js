@@ -50,6 +50,18 @@ function rollRole() {
     return Math.random() < 0.30 ? ROLES.MODERATOR : ROLES.MEMBER;
 }
 
+/**
+ * Higher-Order Function: Safe Socket Event Handler
+ * Wraps socket.io event handlers in a try/catch block.
+ * This prevents the entire Node.js process from crashing if an unhandled 
+ * exception (e.g. database error, undefined variable) occurs inside a socket listener.
+ * Instead, it catches the error and emits a safe 'error:general' event back to the client.
+ * 
+ * @param {Object} socket - The socket instance
+ * @param {string} eventName - The name of the event for logging
+ * @param {Function} handler - The async callback function handling the event
+ * @param {string} clientMessage - The user-friendly error message to send back
+ */
 function safeSocketHandler(socket, eventName, handler, clientMessage = 'Something went wrong.') {
     return async (...args) => {
         try {
@@ -61,6 +73,11 @@ function safeSocketHandler(socket, eventName, handler, clientMessage = 'Somethin
     };
 }
 // ─── Broadcast helpers ────────────────────────────────────────────
+
+/**
+ * Broadcasts the updated list of currently online users to everyone.
+ * Relies on the Redis `users:online` set to track global presence across servers.
+ */
 async function broadcastUserList() {
     const onlineUserIds = await redisClient.sMembers('users:online');
     if (onlineUserIds.length === 0) {
@@ -277,11 +294,18 @@ app.get('/api/dm/:otherUserId', async (req, res) => {
 });
 
 // ─── DM: conversations list ───────────────────────────────────────
+// Uses MongoDB Aggregation to fetch the sidebar list of DM conversations.
 app.get('/api/dm', async (req, res) => {
     try {
         const decoded = authHeader(req, res);
         if (!decoded) return;
+        
         const myId = new mongoose.Types.ObjectId(decoded.id);
+        
+        // 1. Find all DMs where I am a participant
+        // 2. Sort by newest first
+        // 3. Group by `conversationId` and pick the first message (which is the latest due to sort)
+        // 4. Sort the resulting conversations by the latest message's timestamp
         const convos = await DirectMessage.aggregate([
             { $match: { participants: myId, deleted: false } },
             { $sort: { createdAt: -1 } },
@@ -313,6 +337,12 @@ app.get('/api/dm', async (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 //  COMMAND PROCESSOR
 // ══════════════════════════════════════════════════════════════════
+/**
+ * Command Router
+ * Called when a user sends a message starting with a forward slash (e.g. "/kick user").
+ * It intercepts the message so it doesn't get saved to the database, and instead
+ * executes administrative or informational actions based on the user's role weight.
+ */
 async function processCommand(socket, roomName, text) {
     const [cmd, ...args] = text.slice(1).split(' ');
 
@@ -624,8 +654,9 @@ async function processCommand(socket, roomName, text) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  SOCKET.IO
+//  SOCKET.IO LIFECYCLE
 // ══════════════════════════════════════════════════════════════════
+// Inject authentication middleware so every connecting socket has an attached `socket.user`
 io.use(socketAuthMiddleware);
 
 io.on('connection', async (socket) => {
@@ -636,9 +667,10 @@ io.on('connection', async (socket) => {
         return socket.disconnect();
     }
 
-    // Sync role from DB
+    // Sync role from DB in case it changed while offline
     socket.user.role = dbUser.role;
 
+    // Add socket ID to Redis for presence tracking (allowing multiple tabs/devices per user)
     await redisClient.sAdd(`user:sockets:${socket.user.id}`, socket.id);
     await redisClient.sAdd('users:online', socket.user.id);
     await User.findByIdAndUpdate(socket.user.id, { online: true, socketId: socket.id });
