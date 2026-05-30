@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, } from 'react';
+import { emitWithRetry, generateClientId } from '../socket';
 
 export default function DMChat({ currentUser, otherUser, token, socket, onClose }) {
-  const [messages, setMessages]       = useState([]);
-  const [text, setText]               = useState('');
-  const [typing, setTyping]           = useState(false);
-  const [isTyping, setIsTyping]       = useState(false);
-  const bottomRef                     = useRef(null);
-  const typingTimeout                 = useRef(null);
+  const [messages, setMessages] = useState([]);
+  const [text, setText] = useState('');
+  const [typing, setTyping] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const bottomRef = useRef(null);
+  const typingTimeout = useRef(null);
 
   // Load history + join DM room
   useEffect(() => {
@@ -17,13 +18,16 @@ export default function DMChat({ currentUser, otherUser, token, socket, onClose 
     })
       .then(r => r.json())
       .then(data => setMessages(Array.isArray(data) ? data : []))
-      .catch(() => {});
+      .catch(() => { });
 
     socket.emit('dm:join', { otherUserId: otherUser.id });
 
     const onMessage = (msg) => {
       setMessages(prev => {
-        if (prev.find(m => m.id === msg.id)) return prev;
+        const existingMsg = prev.find(m => m.id === msg.id || (msg.clientId && m.id === msg.clientId));
+        if (existingMsg) {
+          return prev.map(m => m.id === existingMsg.id ? { ...m, ...msg, id: msg.id, status: 'sent' } : m);
+        }
         return [...prev, msg];
       });
     };
@@ -35,13 +39,13 @@ export default function DMChat({ currentUser, otherUser, token, socket, onClose 
     };
 
     socket.on('dm:message', onMessage);
-    socket.on('dm:typing',  onTyping);
-    socket.on('dm:read',    onRead);
+    socket.on('dm:typing', onTyping);
+    socket.on('dm:read', onRead);
 
     return () => {
       socket.off('dm:message', onMessage);
-      socket.off('dm:typing',  onTyping);
-      socket.off('dm:read',    onRead);
+      socket.off('dm:typing', onTyping);
+      socket.off('dm:read', onRead);
     };
   }, [otherUser?.id]);
 
@@ -54,8 +58,38 @@ export default function DMChat({ currentUser, otherUser, token, socket, onClose 
     e.preventDefault();
     const trimmed = text.trim();
     if (!trimmed) return;
-    socket.emit('dm:send', { toUserId: otherUser.id, text: trimmed });
-    setText('');
+
+    const clientId = generateClientId();
+
+    const optMsg = {
+      id: clientId, // temporary ID
+      senderId: currentUser.id,
+      senderUsername: currentUser.username,
+      senderRole: currentUser.role,
+      text: trimmed,
+      timestamp: Date.now(),
+      status: 'sending' // <-- New status field
+    };
+
+    setMessages(prev => [...prev, optMsg])
+    setText('')
+
+    emitWithRetry('dm:send', {
+      toUserId: otherUser.id,
+      text: trimmed,
+      clientId // <-- Send to backend for idempotency
+    }, (res) => {
+      if (res.error) {
+        setMessages(prev => prev.map(m =>
+          m.id == clientId ? { ...m, status: 'failed' } : m
+        ))
+      } else {
+        setMessages(prev => prev.map(m =>
+          m.id === clientId ? { ...m, id: res.id, status: 'sent' } : m
+        ));
+      }
+    })
+
     clearTimeout(typingTimeout.current);
     socket.emit('dm:typing:stop', { toUserId: otherUser.id });
     setTyping(false);
@@ -134,8 +168,12 @@ export default function DMChat({ currentUser, otherUser, token, socket, onClose 
                 <div className="dm-msg-meta">
                   <span className="dm-msg-time">{formatTime(msg.timestamp)}</span>
                   {isMe && (
-                    <span className="dm-msg-read" title={msg.read ? 'Read' : 'Delivered'}>
-                      {msg.read ? '✓✓' : '✓'}
+                    <span className="dm-msg-read" title={msg.status || (msg.read ? 'Read' : 'Delivered')}>
+                      {msg.status === 'sending' && '🕒'}
+                      {msg.status === 'failed' && '⚠️ Failed'}
+                      {msg.status === 'sent' && (msg.read ? '✓✓' : '✓')}
+                      {/* Fallback for old messages without status */}
+                      {!msg.status && (msg.read ? '✓✓' : '✓')}
                     </span>
                   )}
                 </div>

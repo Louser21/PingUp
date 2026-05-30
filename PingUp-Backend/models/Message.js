@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const messageSchema = new mongoose.Schema({
-  roomName:  { type: String, required: true, index: true },
+  roomName: { type: String, required: true, index: true },
 
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -9,17 +9,17 @@ const messageSchema = new mongoose.Schema({
     required: true
   },
 
-  username:  { type: String, required: true },
+  username: { type: String, required: true },
 
-  role:      { type: String, required: true },
+  role: { type: String, required: true },
 
-  text:      { type: String, required: true },
+  text: { type: String, required: true },
 
-  deleted:   { type: Boolean, default: false },
+  deleted: { type: Boolean, default: false },
 
-  pinned:    { type: Boolean, default: false },
+  pinned: { type: Boolean, default: false },
 
-  editedAt:  { type: Date, default: null },
+  editedAt: { type: Date, default: null },
 
   // NEW: Thread / Reply Support
   parentMessageId: {
@@ -37,9 +37,9 @@ const messageSchema = new mongoose.Schema({
   editHistory: [{
     originalText: { type: String, required: true },
 
-    editedText:   { type: String, required: true },
+    editedText: { type: String, required: true },
 
-    editedAt:     { type: Date, default: Date.now },
+    editedAt: { type: Date, default: Date.now },
 
     editedBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -47,6 +47,12 @@ const messageSchema = new mongoose.Schema({
       default: null,
     },
   }],
+
+  clientId: {
+    type: String,
+    sparse: true,
+    unique: true
+  },
 
 }, { timestamps: true });
 

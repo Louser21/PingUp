@@ -674,21 +674,21 @@ io.on('connection', async (socket) => {
         socket.emit('room:history', {
             roomName,
             messages: history.reverse().map(m => ({
-    id: m._id.toString(),
-    userId: m.userId.toString(),
-    username: m.username,
-    role: m.role,
-    text: m.text,
-    timestamp: m.createdAt,
-    deleted: m.deleted,
-    pinned: pinnedIds.includes(m._id.toString()),
-    editedAt: m.editedAt,
-    editHistory: m.editHistory,
+                id: m._id.toString(),
+                userId: m.userId.toString(),
+                username: m.username,
+                role: m.role,
+                text: m.text,
+                timestamp: m.createdAt,
+                deleted: m.deleted,
+                pinned: pinnedIds.includes(m._id.toString()),
+                editedAt: m.editedAt,
+                editHistory: m.editHistory,
 
-    // THREAD FIX
-    parentMessageId: m.parentMessageId,
-    replyCount: m.replyCount || 0,
-})),
+                // THREAD FIX
+                parentMessageId: m.parentMessageId,
+                replyCount: m.replyCount || 0,
+            })),
         });
         io.to(roomName).emit('room:notification', {
             text: `${socket.user.username} joined #${roomName}`, type: 'join',
@@ -713,21 +713,21 @@ io.on('connection', async (socket) => {
         socket.emit('channel:history', {
             channelId,
             messages: history.reverse().map(m => ({
-    id: m._id.toString(),
-    userId: m.userId.toString(),
-    username: m.username,
-    role: m.role,
-    text: m.text,
-    timestamp: m.createdAt,
-    deleted: m.deleted,
-    pinned: pinnedIds.includes(m._id.toString()),
-    editedAt: m.editedAt,
-    editHistory: m.editHistory,
+                id: m._id.toString(),
+                userId: m.userId.toString(),
+                username: m.username,
+                role: m.role,
+                text: m.text,
+                timestamp: m.createdAt,
+                deleted: m.deleted,
+                pinned: pinnedIds.includes(m._id.toString()),
+                editedAt: m.editedAt,
+                editHistory: m.editHistory,
 
-    // THREAD FIX
-    parentMessageId: m.parentMessageId,
-    replyCount: m.replyCount || 0,
-})),
+                // THREAD FIX
+                parentMessageId: m.parentMessageId,
+                replyCount: m.replyCount || 0,
+            })),
             roomSettings: roomToChannel(room),
         });
     }, 'Failed to join channel.'));
@@ -767,7 +767,7 @@ io.on('connection', async (socket) => {
                     return socket.emit('error:permission', 'You cannot send messages.');
 
                 const msgId = new mongoose.Types.ObjectId();
-                
+
                 await messageQueue.add('send-message', {
                     _id: msgId,
                     roomName: resolvedRoom,
@@ -976,39 +976,39 @@ io.on('connection', async (socket) => {
     });
 
     socket.on(
-  'thread:get',
-  safeSocketHandler(
-    socket,
-    'thread:get',
-    async ({ parentMessageId }) => {
+        'thread:get',
+        safeSocketHandler(
+            socket,
+            'thread:get',
+            async ({ parentMessageId }) => {
 
-      if (!parentMessageId) return;
+                if (!parentMessageId) return;
 
-      const replies = await Message.find({
-        parentMessageId,
-        deleted: false,
-      })
-        .sort({ createdAt: 1 })
-        .lean();
+                const replies = await Message.find({
+                    parentMessageId,
+                    deleted: false,
+                })
+                    .sort({ createdAt: 1 })
+                    .lean();
 
-      socket.emit('thread:history', {
-        parentMessageId,
-        replies: replies.map((m) => ({
-          id: m._id.toString(),
-          userId: m.userId.toString(),
-          username: m.username,
-          role: m.role,
-          text: m.text,
-          timestamp: m.createdAt,
-          deleted: m.deleted,
-          editedAt: m.editedAt,
-          replyCount: m.replyCount,
-          parentMessageId: m.parentMessageId,
-        })),
-      });
-    }
-  )
-);
+                socket.emit('thread:history', {
+                    parentMessageId,
+                    replies: replies.map((m) => ({
+                        id: m._id.toString(),
+                        userId: m.userId.toString(),
+                        username: m.username,
+                        role: m.role,
+                        text: m.text,
+                        timestamp: m.createdAt,
+                        deleted: m.deleted,
+                        editedAt: m.editedAt,
+                        replyCount: m.replyCount,
+                        parentMessageId: m.parentMessageId,
+                    })),
+                });
+            }
+        )
+    );
 
     // ── Category CRUD ──────────────────────────────────────────────
     socket.on('category:create', safeSocketHandler(socket, 'category:create', async ({ name }) => {
@@ -1109,43 +1109,53 @@ io.on('connection', async (socket) => {
         if (otherSocket) otherSocket.emit('dm:read', { conversationId: convId });
     }, 'Failed to open direct message.'));
 
-    socket.on('dm:send', safeSocketHandler(socket, 'dm:send', async ({ toUserId, text }) => {
-        const trimmed = text?.trim();
-        if (!trimmed) return;
-        const toUser = await User.findById(toUserId);
-        if (!toUser) return socket.emit('error:general', 'User not found.');
-        const convId = [socket.user.id, toUserId].sort().join('_');
-        const freshUser = await User.findById(socket.user.id);
-        const msg = await DirectMessage.create({
-            conversationId: convId,
-            participants: [socket.user.id, toUserId],
-            senderId: socket.user.id,
-            senderUsername: socket.user.username,
-            senderRole: freshUser.role,
-            text: trimmed,
-            read: false,
-        });
-        const payload = {
-            id: msg._id.toString(),
-            conversationId: convId,
-            senderId: socket.user.id,
-            senderUsername: socket.user.username,
-            senderRole: freshUser.role,
-            text: trimmed,
-            timestamp: msg.createdAt,
-            read: false,
-        };
-        io.to(`dm:${convId}`).emit('dm:message', payload);
-        const rs = [...io.sockets.sockets.values()].find(s => s.user?.id === toUserId);
-        if (rs && rs.currentDM !== convId) {
-            rs.emit('dm:notification', {
-                from: socket.user.username,
-                fromId: socket.user.id,
+    socket.on('dm:send', safeSocketHandler(socket, 'dm:send', async ({ toUserId, text, clientId }, callback) => {
+        try {
+            if (clientId) {
+                const existingMsg = await DirectMessage.findOne({ clientId });
+
+                if (existingMsg) {
+                    if (typeof callback == 'function') {
+                        return callback({ status: 'success', id: existingMsg._id.toString() });
+                    }
+                    return;
+                }
+            }
+
+            const convId = [toUserId, socket.user.id].sort().join('_');
+
+            const msg = await DirectMessage.create({
                 conversationId: convId,
-                preview: trimmed.slice(0, 60),
-            });
+                participants: [socket.user.id, toUserId],
+                senderId: socket.user.id,
+                senderUsername: socket.user.username,
+                senderRole: socket.user.role,
+                text,
+                clientId
+            })
+
+            const payload = {
+                id: msg._id.toString(),
+                senderId: socket.user.id,
+                senderUsername: socket.user.username,
+                senderRole: socket.user.role,
+                text,
+                timestamp: msg.createdAt,
+                read: false,
+                clientId
+            }
+
+            io.to(convId).emit('dm:message', payload);
+
+            if (typeof callback === 'function') {
+                callback({ status: 'success', id: msg._id.toString() });
+            }
+        } catch (err) {
+            if (typeof callback === 'function') {
+                callback({ error: 'Server error', status: 'failed' });
+            }
         }
-    }, 'Direct message failed to send.'));
+    }));
 
     socket.on('dm:typing:start', ({ toUserId }) => {
         const convId = [socket.user.id, toUserId].sort().join('_');

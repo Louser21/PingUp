@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const bcrypt   = require('bcryptjs');
+const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
   username: {
@@ -11,13 +11,13 @@ const userSchema = new mongoose.Schema({
     enum: ['owner', 'moderator', 'member'],
     default: 'member',
   },
-  email:       { type: String, default: '' },
+  email: { type: String, default: '' },
   displayName: { type: String, default: '' },
-  phone:       { type: String, default: '' },
-  online:      { type: Boolean, default: false },
-  socketId:    { type: String, default: null },
-  isFirst:     { type: Boolean, default: false }, // true = first ever user (owner)
-  loginCount:  { type: Number, default: 0 },
+  phone: { type: String, default: '' },
+  online: { type: Boolean, default: false },
+  socketId: { type: String, default: null },
+  isFirst: { type: Boolean, default: false }, // true = first ever user (owner)
+  loginCount: { type: Number, default: 0 },
 }, { timestamps: true });
 
 // Hash password before save
@@ -34,14 +34,14 @@ userSchema.methods.comparePassword = function (plain) {
 // Strip sensitive fields
 userSchema.methods.toSafeObject = function () {
   return {
-    id:          this._id.toString(),
-    username:    this.username,
+    id: this._id.toString(),
+    username: this.username,
     displayName: this.displayName || this.username,
-    role:        this.role,
-    email:       this.email,
-    phone:       this.phone,
-    online:      this.online,
-    isFirst:     this.isFirst,
+    role: this.role,
+    email: this.email,
+    phone: this.phone,
+    online: this.online,
+    isFirst: this.isFirst,
   };
 };
 
